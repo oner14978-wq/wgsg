@@ -130,6 +130,17 @@ jobs:
 
       - name: "Verificação 3/4 - identificar a estrutura real do projeto Android"
         run: |
+          echo "=== Diagnóstico: conteúdo extraído em $SRC_ROOT ==="
+          echo "Total de arquivos: $(find "$SRC_ROOT" -type f | wc -l)"
+          echo "--- Pastas de topo ---"
+          ls -la "$SRC_ROOT" | head -40
+          echo "--- Arquivos de build encontrados ---"
+          find "$SRC_ROOT" \( -name 'settings.gradle*' -o -name 'build.gradle*' -o -name 'gradlew' \) -not -path '*/node_modules/*' | head -30
+          echo "--- ZIPs/arquivos grandes dentro do extraído (possíveis ZIPs aninhados) ---"
+          find "$SRC_ROOT" -type f \( -name '*.zip' -o -name '*.tar*' -o -name '*.7z' \) | head -20
+          echo "--- Conteúdo de cada ZIP (primeiras 6 entradas) ---"
+          while read -r z; do echo "# $(basename "$z")"; unzip -Z1 "$z" | head -6; done < "$REPORT_DIR/zips.txt"
+          echo "=== Fim do diagnóstico ==="
           base64 -d <<'B64' | gunzip | python3 -
           H4sIAAAAAAACA51Y607jShL+76dotVbCZsDA/NlzzMlBnIHDcCCAAjNaKcmJOnE7GHyT2wkZZfIw
           q/2xDzCPwIvtV93txAlZ9hKJxF2uqq6q/urSxGmRlxXL1R4r5R5T3/AwTvKho8oRa4Huy2wal3nW
