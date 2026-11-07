@@ -62,40 +62,37 @@ jobs:
         run: |
           set -uo pipefail
           ZIPS=(
-            Zali-03.zip Zalit-04.zip Zalit-05.zip Zalit-06.zip Zalit-08.zip
-            Zalit-10.zip Zalit-18.zip Zalith-01.zip Zalith-02.zip Zalith-09.zip
-            Zalith-12.zip Zalith-13.zip Zalith-20.zip ZalithL-14.zip ZalithL-15.zip
-            ZalithL-16.zip ZalithL-21.zip ZalithL-22.zip ZalithLa-07.zip
-            ZalithLa-11.zip ZalithLa-17.zip ZalithLa-19.zip
+            01 02 03 04 05 06 07 08 09 10 11
+            12 13 14 15 16 17 18 19 20 21 22
           )
           expected=${#ZIPS[@]}; found=0; ok=0
           : > "$REPORT_DIR/zips.txt"
 
           find_one() {
-            find "$GITHUB_WORKSPACE" -type f -name "$1" -not -path '*/.git/*' 2>/dev/null \
+            find "$GITHUB_WORKSPACE" -type f -name "Zali*-$1.zip" -not -path '*/.git/*' 2>/dev/null \
               | awk '{ print length($0) "\t" $0 }' | sort -n | cut -f2-
           }
 
           for n in "${ZIPS[@]}"; do
             mapfile -t hits < <(find_one "$n")
             if [ "${#hits[@]}" -eq 0 ]; then
-              echo "::error::ZIP ausente no repositório: $n"
-              echo "ZIP ausente: $n" >> "$REPORT_DIR/problems.txt"; continue
+              echo "::error::ZIP número $n ausente no repositório (esperado Zali*-$n.zip)"
+              echo "ZIP número $n ausente" >> "$REPORT_DIR/problems.txt"; continue
             fi
             found=$((found+1))
             f="${hits[0]}"
             size=$(stat -c %s "$f")
             magic=$(head -c2 "$f" 2>/dev/null)
             if [ "$size" -lt 1024 ] || [ "$magic" != "PK" ]; then
-              echo "::error::$n não é um ZIP válido (tamanho=$size)"
-              echo "ZIP inválido/ponteiro LFS: $n ($size bytes)" >> "$REPORT_DIR/problems.txt"; continue
+              echo "::error::$f não é um ZIP válido (tamanho=$size)"
+              echo "ZIP inválido/ponteiro LFS: $f ($size bytes)" >> "$REPORT_DIR/problems.txt"; continue
             fi
             if ! unzip -tqq "$f" >/dev/null 2>&1; then
-              echo "::error::Falha no teste de integridade: $n"
-              echo "ZIP corrompido: $n" >> "$REPORT_DIR/problems.txt"; continue
+              echo "::error::Falha no teste de integridade: $f"
+              echo "ZIP corrompido: $f" >> "$REPORT_DIR/problems.txt"; continue
             fi
             entries=$(unzip -Z1 "$f" | grep -vc '/$' || true)
-            printf 'OK  %-18s %10s bytes  %5s arquivos  (%s)\n' "$n" "$size" "$entries" "${f#$GITHUB_WORKSPACE/}"
+            printf 'OK  %-18s %10s bytes  %5s arquivos  (%s)\n' "$(basename "$f")" "$size" "$entries" "${f#$GITHUB_WORKSPACE/}"
             echo "$f" >> "$REPORT_DIR/zips.txt"
             ok=$((ok+1))
           done
