@@ -253,8 +253,12 @@ jobs:
             echo "Release ignorado: secrets ausentes" >> "$REPORT_DIR/problems.txt"; r=false
           fi
           echo "BUILD_DEBUG=$d" >> "$GITHUB_ENV"; echo "BUILD_RELEASE=$r" >> "$GITHUB_ENV"
-      - name: Trocar ícone do app pelo gato
+      - name: Trocar nome e ícone do app (Cat Launcher)
         run: |
+          P="$PROJECT_DIR/gradle.properties"; touch "$P"; echo >> "$P"
+          grep -E '^[A-Za-z0-9_.]+=' /tmp/upstream/gradle.properties | while IFS== read -r k v; do grep -q "^$k=" "$P" || echo "$k=$v" >> "$P"; done
+          sed -i -E '/^launcher_(app_)?name=/d' "$P"
+          printf 'launcher_app_name=Cat Launcher\nlauncher_name=Cat Launcher\n' >> "$P"
           python3 - <<'P'
           import zlib,struct,os,glob
           R=os.environ["APP_DIR"]+"/src/main/res/"
@@ -265,7 +269,8 @@ jobs:
            w=lambda t,d:struct.pack(">I",len(d))+t+d+struct.pack(">I",zlib.crc32(t+d))
            r=b"".join(b"\0"+b"".join(G[y*16//s][x*16//s] for x in range(s)) for y in range(s))
            return b"\x89PNG\r\n\x1a\n"+w(b"IHDR",struct.pack(">IIBBBBB",s,s,8,2,0,0,0))+w(b"IDAT",zlib.compress(r))+w(b"IEND",b"")
-          for f in glob.glob(R+"mipmap-*/ic_launcher*"): os.remove(f)
+          for f in glob.glob(R+"mipmap-*/ic_launcher*")+glob.glob(R+"drawable*/ic_launcher_foreground.*"): os.remove(f)
+          os.makedirs(R+"drawable-nodpi",exist_ok=True); open(R+"drawable-nodpi/ic_launcher_foreground.png","wb").write(png(192))
           for d,s in dict(mdpi=48,hdpi=72,xhdpi=96,xxhdpi=144,xxxhdpi=192).items():
            os.makedirs(R+"mipmap-"+d,exist_ok=True)
            for n in ("ic_launcher","ic_launcher_round"): open(f"{R}mipmap-{d}/{n}.png","wb").write(png(s))
