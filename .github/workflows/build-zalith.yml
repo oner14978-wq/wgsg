@@ -334,6 +334,14 @@ jobs:
           name: ZalithLauncher2-APK-${{ env.ARCH }}
           path: /tmp/apks/*.apk
           if-no-files-found: warn
-      - name: Publicar relatório
+            - name: Publicar relatório
         if: always()
+        run: |
+          {
+            echo "## Relatório da compilação"
+            echo "### Problemas encontrados"
+            cat "$REPORT_DIR/problems.txt" 2>/dev/null || true
+            echo "### Correções aplicadas"
+            cat "$REPORT_DIR/fixed.txt" 2>/dev/null || true
+          } >> "$GITHUB_STEP_SUMMARY"
   
