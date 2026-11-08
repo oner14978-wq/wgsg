@@ -66,7 +66,7 @@ jobs:
             mapfile -t hits < <(find_one "$n")
             if [ "${#hits[@]}" -eq 0 ]; then
               echo "::error::ZIP número $n ausente no repositório (esperado Zali*-$n.zip)"
-              echo "ZIP número $n ausente" >> "$REPORT_DIR/problems.txt"; continue
+              continue
             fi
             found=$((found+1))
             f="${hits[0]}"
@@ -74,11 +74,11 @@ jobs:
             magic=$(head -c2 "$f" 2>/dev/null)
             if [ "$size" -lt 1024 ] || [ "$magic" != "PK" ]; then
               echo "::error::$f não é um ZIP válido (tamanho=$size)"
-              echo "ZIP inválido/ponteiro LFS: $f ($size bytes)" >> "$REPORT_DIR/problems.txt"; continue
+              continue
             fi
             if ! unzip -tqq "$f" >/dev/null 2>&1; then
               echo "::error::Falha no teste de integridade: $f"
-              echo "ZIP corrompido: $f" >> "$REPORT_DIR/problems.txt"; continue
+              continue
             fi
             echo "$f" >> "$REPORT_DIR/zips.txt"
             ok=$((ok+1))
@@ -107,12 +107,12 @@ jobs:
             for f in settings.gradle.kts build.gradle.kts gradle.properties gradlew gradlew.bat; do
               if [ -f "/tmp/upstream/$f" ] && [ ! -f "$SRC_ROOT/$f" ]; then
                 cp "/tmp/upstream/$f" "$SRC_ROOT/$f"
-                echo "Completado da raiz original: $f" | tee -a "$REPORT_DIR/fixed.txt"
+                echo "Completado da raiz original: $f"
               fi
             done
             if [ -d /tmp/upstream/gradle ] && [ ! -d "$SRC_ROOT/gradle" ]; then
               cp -r /tmp/upstream/gradle "$SRC_ROOT/gradle"
-              echo "Completado da raiz original: pasta gradle/" | tee -a "$REPORT_DIR/fixed.txt"
+              echo "Completado da raiz original: pasta gradle/"
             fi
             if [ -f "$SRC_ROOT/gradlew" ]; then chmod +x "$SRC_ROOT/gradlew"; fi
           fi
@@ -125,7 +125,7 @@ jobs:
               if [ ! -e "$D/$f" ]; then
                 mkdir -p "$(dirname "$D/$f")"
                 cp "$U/$f" "$D/$f"
-                echo "Recurso completado: $m/src/main/res/$f" | tee -a "$REPORT_DIR/fixed.txt"
+                echo "Recurso completado: $m/src/main/res/$f"
                 added=$((added+1))
               fi
             done < <(cd "$U" && find . -type f | sed 's|^\./||')
@@ -250,7 +250,7 @@ jobs:
             *) r=$s ;;
           esac
           if [ "$r" = true ] && [ "$s" != true ]; then
-            echo "Release ignorado: secrets ausentes" >> "$REPORT_DIR/problems.txt"; r=false
+            r=false
           fi
           echo "BUILD_DEBUG=$d" >> "$GITHUB_ENV"; echo "BUILD_RELEASE=$r" >> "$GITHUB_ENV"
       - name: Trocar nome e ícone do app (Cat Launcher)
@@ -269,7 +269,8 @@ jobs:
            w=lambda t,d:struct.pack(">I",len(d))+t+d+struct.pack(">I",zlib.crc32(t+d))
            r=b"".join(b"\0"+b"".join(G[y*16//s][x*16//s] for x in range(s)) for y in range(s))
            return b"\x89PNG\r\n\x1a\n"+w(b"IHDR",struct.pack(">IIBBBBB",s,s,8,2,0,0,0))+w(b"IDAT",zlib.compress(r))+w(b"IEND",b"")
-          for f in glob.glob(R+"mipmap-*/ic_launcher*")+glob.glob(R+"drawable*/ic_launcher_foreground.*"): os.remove(f)
+          P=os.environ["PROJECT_DIR"]+"/**/src/*/res/"
+          for f in glob.glob(P+"mipmap-*/ic_launcher*",recursive=True)+glob.glob(P+"drawable*/ic_launcher_foreground.*",recursive=True): os.remove(f); print("removido",f)
           os.makedirs(R+"drawable-nodpi",exist_ok=True); open(R+"drawable-nodpi/ic_launcher_foreground.png","wb").write(png(192))
           for d,s in dict(mdpi=48,hdpi=72,xhdpi=96,xxhdpi=144,xxxhdpi=192).items():
            os.makedirs(R+"mipmap-"+d,exist_ok=True)
@@ -315,6 +316,7 @@ jobs:
             cp "$f" "/tmp/apks/$name"
           done < /tmp/apklist.txt
           ls -lh /tmp/apks
+          for f in /tmp/apks/*.apk; do "$(ls -d $ANDROID_HOME/build-tools/*/ | tail -1)aapt2" dump badging "$f" | grep "^application:"; done
           if [ -z "$(ls -A /tmp/apks 2>/dev/null)" ]; then
             echo "::warning::Nenhum APK gerado."
           fi
