@@ -183,6 +183,13 @@ jobs:
               [ -f "$p" ] && sed -i -E "${l}s/\.weight\([^()]*(\([^()]*[^()]*)*\)//g" "$p" && c=1 \
                 && echo "Removido .weight(...) fora de Row/Column em ${p##*/}:$l" | tee -a "$REPORT_DIR/fixed.txt"
             done
+            for n in $(grep -ohE "Unresolved reference '[A-Za-z0-9_]+'" "$REPORT_DIR/build-$2.log" | cut -d"'" -f2 | sort -u); do
+              t=$(grep -rhoE --include='*.kt' "R\.(drawable|mipmap)\.$n\b" "$APP_DIR/src/main/java" | head -1 | cut -d. -f2)
+              [ -n "$t" ] || continue
+              mkdir -p "$APP_DIR/src/main/res/$t"
+              echo '<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48"><path android:fillColor="#FF9E9E9E" android:pathData="M24,24m-20,0a20,20 0 1,1 40,0a20,20 0 1,1 -40,0"/></vector>' > "$APP_DIR/src/main/res/$t/$n.xml"
+              c=1; echo "Placeholder criado: $t/$n" | tee -a "$REPORT_DIR/fixed.txt"
+            done
             [ "$c" = 1 ] || { f "$@"; exit 1; }
           done
           f "$@"; exit 1
@@ -265,19 +272,6 @@ jobs:
             echo "Release ignorado: secrets ausentes" >> "$REPORT_DIR/problems.txt"; r=false
           fi
           echo "BUILD_DEBUG=$d" >> "$GITHUB_ENV"; echo "BUILD_RELEASE=$r" >> "$GITHUB_ENV"
-      - name: Criar recursos drawable ausentes (placeholder)
-        run: |
-          cd "$PROJECT_DIR"
-          RES="$APP_DIR/src/main/res"
-          grep -rhoE --include='*.kt' 'R\.(drawable|mipmap)\.[A-Za-z0-9_]+' "$APP_DIR/src/main/java" 2>/dev/null | sort -u | while IFS=. read -r _ typ name; do
-            if [ -z "$(find "$PROJECT_DIR" -path '*/src/main/res/*' -name "$name.*" 2>/dev/null | head -1)" ]; then
-              mkdir -p "$RES/$typ"
-              printf '%s\n' '<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">' \
-                '<path android:fillColor="#FF9E9E9E" android:pathData="M24,24m-20,0a20,20 0 1,1 40,0a20,20 0 1,1 -40,0"/>' \
-                '</vector>' > "$RES/$typ/$name.xml"
-              echo "Recurso ausente criado como placeholder: $typ/$name" | tee -a "$REPORT_DIR/fixed.txt"
-            fi
-          done
       - name: Criar keystore de debug ausente
         run: |
           cd "$PROJECT_DIR"
