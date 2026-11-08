@@ -54,6 +54,7 @@ jobs:
           ZIPS=(
             01 02 03 04 05 06 07 08 09 10 11
             12 13 14 15 16 17 18 19 20 21 22
+            23 24 25 26 27 28 29 30 31 32 33
           )
           expected=${#ZIPS[@]}; found=0; ok=0
           : > "$REPORT_DIR/zips.txt"
@@ -147,29 +148,17 @@ jobs:
       - name: "Verificação 4/4 - correção automática"
         run: |
           set -uo pipefail
-          : "${PROJECT_DIR:?PROJECT_DIR não definido: o passo 3/4 não gravou as variáveis}"
-          : "${APP_DIR:?APP_DIR não definido: o passo 3/4 não gravou as variáveis}"
-          : "${GRADLE_VERSION:=0}" "${HAS_RUST:=false}" "${REPORT_DIR:=/tmp/zreport}"
-          echo "PROJECT_DIR=$PROJECT_DIR | APP_DIR=$APP_DIR | GRADLE=$GRADLE_VERSION | RUST=$HAS_RUST"
-          cd "$PROJECT_DIR" || { echo "::error::não consegui entrar em $PROJECT_DIR"; exit 1; }
-          fixed()   { echo "$1" >> "$REPORT_DIR/fixed.txt"; echo "CORRIGIDO: $1"; }
-          problem() { echo "$1" >> "$REPORT_DIR/problems.txt"; echo "::warning::PROBLEMA: $1"; }
-          if [ ! -x gradlew ]; then
-            problem "gradlew sem permissão de execução"; chmod +x gradlew && fixed "chmod +x gradlew"
-          fi
+          cd "${PROJECT_DIR:?}" && : "${APP_DIR:?}"
+          chmod +x gradlew
           cat > /tmp/gb.sh <<'S'
           cd "$PROJECT_DIR"
           e() { grep -E '^e: ' "$REPORT_DIR/build-$2.log" | head -15; grep -A14 -m1 "What went wrong" "$REPORT_DIR/build-$2.log" | head -16; }
           f() { e "$@"; echo "::error title=Falha em $1::$(e "$@" | sed ':a;N;$!ba;s/\n/%0A/g')"; }
-          for i in 1 2 3; do
+          for i in 1 2 3 4 5; do
             if ./gradlew "${APP_PATH}:$1" -I /tmp/oi.gradle --no-daemon -q --console=plain > "$REPORT_DIR/build-$2.log" 2>&1; then echo "Build $1 OK"; exit 0; fi
             c=0
-            for loc in $(grep -A1 "Unresolved reference 'weight'" "$REPORT_DIR/build-$2.log" | grep -oE 'Location: /[^ ]+ line [0-9]+' | tr ' ' '|'); do
-              IFS='|' read -r _ p _ l <<< "$loc"
-              [ -f "$p" ] && sed -i -E "${l}s/\.weight\([^()]*(\([^()]*[^()]*)*\)//g" "$p" && c=1 \
-                && echo "Removido .weight(...) fora de Row/Column em ${p##*/}:$l" | tee -a "$REPORT_DIR/fixed.txt"
-            done
             while read -r p l k n; do
+              [ "$n" = weight ] && { sed -i -E "${l}s/\.weight\([^)]*\)//" "$p"; c=1; continue; }
               s=$(sed -n "${l}p" "$p"); r=$(echo "${s:0:$((k-1))}" | grep -oE '(drawable|mipmap|string)\.$' | cut -d. -f1)
               if [ "$r" = string ]; then
                 X="$APP_DIR/src/main/res/values/zz_missing.xml"
@@ -264,6 +253,23 @@ jobs:
             echo "Release ignorado: secrets ausentes" >> "$REPORT_DIR/problems.txt"; r=false
           fi
           echo "BUILD_DEBUG=$d" >> "$GITHUB_ENV"; echo "BUILD_RELEASE=$r" >> "$GITHUB_ENV"
+      - name: Trocar ícone do app pelo gato
+        run: |
+          python3 - <<'P'
+          import zlib,struct,os,glob
+          R=os.environ["APP_DIR"]+"/src/main/res/"
+          C=dict(O="E8923A",D="B0621C",W="F5EBDD",G="5CC84A",B="1B1B1B",P="E58A9A")
+          H="........ ........ ..DD.... ..DOD... ..DOOOOD ..DOODOO ..DOOOOO ..DOBGGO ..DOOBBO ..DOOOOP ..DOWWOP ..DOWWWB ..DDOWWW ...DDOOO ....DDDD ........".split()
+          G=[[bytes.fromhex(C.get(c,"2B1B4D")) for c in h+h[::-1]] for h in H]
+          def png(s):
+           w=lambda t,d:struct.pack(">I",len(d))+t+d+struct.pack(">I",zlib.crc32(t+d))
+           r=b"".join(b"\0"+b"".join(G[y*16//s][x*16//s] for x in range(s)) for y in range(s))
+           return b"\x89PNG\r\n\x1a\n"+w(b"IHDR",struct.pack(">IIBBBBB",s,s,8,2,0,0,0))+w(b"IDAT",zlib.compress(r))+w(b"IEND",b"")
+          for f in glob.glob(R+"mipmap-*/ic_launcher*"): os.remove(f)
+          for d,s in dict(mdpi=48,hdpi=72,xhdpi=96,xxhdpi=144,xxxhdpi=192).items():
+           os.makedirs(R+"mipmap-"+d,exist_ok=True)
+           for n in ("ic_launcher","ic_launcher_round"): open(f"{R}mipmap-{d}/{n}.png","wb").write(png(s))
+          P
       - name: Criar keystore de debug ausente
         run: |
           cd "$PROJECT_DIR"
