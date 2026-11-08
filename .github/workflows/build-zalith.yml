@@ -214,7 +214,11 @@ jobs:
       - name: "Verificação 4/4 - correção automática"
         run: |
           set -uo pipefail
-          cd "$PROJECT_DIR"
+          : "${PROJECT_DIR:?PROJECT_DIR não definido: o passo 3/4 não gravou as variáveis}"
+          : "${APP_DIR:?APP_DIR não definido: o passo 3/4 não gravou as variáveis}"
+          : "${GRADLE_VERSION:=0}" "${HAS_RUST:=false}" "${REPORT_DIR:=/tmp/zreport}"
+          echo "PROJECT_DIR=$PROJECT_DIR | APP_DIR=$APP_DIR | GRADLE=$GRADLE_VERSION | RUST=$HAS_RUST"
+          cd "$PROJECT_DIR" || { echo "::error::não consegui entrar em $PROJECT_DIR"; exit 1; }
           fixed()   { echo "$1" >> "$REPORT_DIR/fixed.txt"; echo "CORRIGIDO: $1"; }
           problem() { echo "$1" >> "$REPORT_DIR/problems.txt"; echo "::warning::PROBLEMA: $1"; }
 
@@ -223,6 +227,7 @@ jobs:
           fi
 
           gmaj=${GRADLE_VERSION%%.*}
+          case "$gmaj" in ''|*[!0-9]*) gmaj=0 ;; esac
           for s in settings.gradle.kts settings.gradle; do
             [ -f "$s" ] || continue
             v=$(grep -oE 'foojay-resolver-convention["'"'"')[:space:]]*version[[:space:]]*?["'"'"'][0-9.]+' "$s" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
@@ -380,17 +385,4 @@ jobs:
         run: |
           set +e +o pipefail
           mkdir -p /tmp/apks
-          find "${PROJECT_DIR:-.}" -type f -name '*.apk' -path '*/build/outputs/apk/*' 2>/dev/null > /tmp/apklist.txt
-          while read -r f; do
-            [ -n "$f" ] || continue
-            name=$(basename "$f")
-            if [ "$ARCH" != "all" ]; then
-              case "$name" in
-                *"$ARCH"*|*universal*) ;;
-                *) continue ;;
-              esac
-            fi
-            cp "$f" "/tmp/apks/$name"
-          done < /tmp/apklist.txt
-          ls -lh /tmp/apks
-          if [ -z "$(ls -A 
+          find "${PROJECT_DIR:-.}" -
