@@ -255,13 +255,12 @@ jobs:
           echo "BUILD_DEBUG=$d" >> "$GITHUB_ENV"; echo "BUILD_RELEASE=$r" >> "$GITHUB_ENV"
       - name: Trocar nome e ícone do app (Cat Launcher)
         run: |
-          P="$PROJECT_DIR/gradle.properties"; touch "$P"; echo >> "$P"
-          grep -E '^[A-Za-z0-9_.]+=' /tmp/upstream/gradle.properties | while IFS== read -r k v; do grep -q "^$k=" "$P" || echo "$k=$v" >> "$P"; done
+          cd "$PROJECT_DIR"; P="$APP_DIR/gradle.properties"; touch "$P"
           sed -i -E '/^launcher_(app_)?name=/d' "$P"
-          printf 'launcher_app_name=Cat Launcher\nlauncher_name=Cat Launcher\n' >> "$P"
+          printf '\nlauncher_app_name=Cat Launcher\nlauncher_name=Cat Launcher\n' >> "$P"
           python3 - <<'P'
           import zlib,struct,os,glob
-          R=os.environ["APP_DIR"]+"/src/main/res/"
+          R=os.path.join(os.environ["PROJECT_DIR"],os.environ["APP_DIR"],"src/main/res")+"/"
           C=dict(O="E8923A",D="B0621C",W="F5EBDD",G="5CC84A",B="1B1B1B",P="E58A9A")
           H="........ ........ ..DD.... ..DOD... ..DOOOOD ..DOODOO ..DOOOOO ..DOBGGO ..DOOBBO ..DOOOOP ..DOWWOP ..DOWWWB ..DDOWWW ...DDOOO ....DDDD ........".split()
           G=[[bytes.fromhex(C.get(c,"2B1B4D")) for c in h+h[::-1]] for h in H]
@@ -275,6 +274,7 @@ jobs:
           for d,s in dict(mdpi=48,hdpi=72,xhdpi=96,xxhdpi=144,xxxhdpi=192).items():
            os.makedirs(R+"mipmap-"+d,exist_ok=True)
            for n in ("ic_launcher","ic_launcher_round"): open(f"{R}mipmap-{d}/{n}.png","wb").write(png(s))
+          print("icones criados em",R,len(glob.glob(R+"mipmap-*/ic_launcher.png")))
           P
       - name: Criar keystore de debug ausente
         run: |
