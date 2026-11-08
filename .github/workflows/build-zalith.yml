@@ -179,7 +179,7 @@ jobs:
           done
           cat > /tmp/gb.sh <<'S'
           cd "$PROJECT_DIR"
-          e() { grep -A14 -m1 "What went wrong" "$REPORT_DIR/build-$2.log" | head -16; }
+          e() { grep -E '^e: ' "$REPORT_DIR/build-$2.log" | head -15; grep -A14 -m1 "What went wrong" "$REPORT_DIR/build-$2.log" | head -16; }
           f() { e "$@"; echo "::error title=Falha em $1::$(e "$@" | sed ':a;N;$!ba;s/\n/%0A/g')"; }
           for i in 1 2 3; do
             if ./gradlew "${APP_PATH}:$1" -I /tmp/oi.gradle --no-daemon -q --console=plain > "$REPORT_DIR/build-$2.log" 2>&1; then echo "Build $1 OK"; exit 0; fi
@@ -271,6 +271,17 @@ jobs:
             echo "Release ignorado: secrets ausentes" >> "$REPORT_DIR/problems.txt"; r=false
           fi
           echo "BUILD_DEBUG=$d" >> "$GITHUB_ENV"; echo "BUILD_RELEASE=$r" >> "$GITHUB_ENV"
+      - name: Criar keystore de debug ausente
+        run: |
+          cd "$PROJECT_DIR"
+          F="$APP_DIR/zalith_launcher_debug.jks"
+          grep -nE "keyAlias|storePassword|keyPassword|storeFile" "$APP_DIR"/build.gradle.kts || true
+          if [ ! -f "$F" ]; then
+            keytool -genkeypair -v -keystore "$F" -storetype JKS \
+              -alias androiddebugkey -storepass android -keypass android \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
       - name: Compilar Debug
         if: env.BUILD_DEBUG == 'true'
         run: |
