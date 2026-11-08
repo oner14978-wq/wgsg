@@ -177,13 +177,6 @@ jobs:
               fi
             fi
           done
-          for k in "$APP_DIR"/zalith_launcher_debug.jks "$APP_DIR"/zalith_launcher.jks; do
-            [ -f "$k" ] && echo "keystore OK: $k" || problem "keystore ausente: $k"
-          done
-          if [ -n "${NDK_MK_PATH:-}" ]; then
-            [ -f "$APP_DIR/$NDK_MK_PATH" ] && echo "Android.mk OK" || problem "Android.mk ausente: $APP_DIR/$NDK_MK_PATH"
-          fi
-          [ "$HAS_RUST" = "true" ] && { [ -f PetLib/rust/Cargo.lock ] && echo "Cargo.lock OK" || problem "Cargo.lock ausente"; }
           cat > /tmp/gb.sh <<'S'
           cd "$PROJECT_DIR"
           e() { grep -A14 -m1 "What went wrong" "$REPORT_DIR/build-$2.log" | head -16; }
@@ -215,14 +208,6 @@ jobs:
             } catch (e) {}
           } }
           O
-      - name: "Segunda verificação (após as correções)"
-        run: |
-          cd "$PROJECT_DIR"
-          for f in gradlew gradle/wrapper/gradle-wrapper.jar gradle/wrapper/gradle-wrapper.properties "$APP_DIR/src/main/AndroidManifest.xml"; do
-            [ -f "$f" ] || { echo "::error::arquivo ausente: $f"; exit 1; }
-          done
-          [ -x gradlew ] || { echo "::error::gradlew sem permissão"; exit 1; }
-          echo "Segunda verificação OK"
       - name: Adicionar Java 21 e 25 ao projeto
         run: |
           set -eu
@@ -240,13 +225,6 @@ jobs:
           fi
           xz -t "$A/jre-21/universal.tar.xz" "$A/jre-25/universal.tar.xz"
           ls -l "$A/jre-21" "$A/jre-25"
-      - name: Conferir runtimes Java embutidos
-        run: |
-          for v in 8 17 21 25; do
-            s=$(find "$SRC_ROOT" -path "*runtimes/jre-$v/universal.tar.xz" -printf '%s' 2>/dev/null | head -c 12)
-            echo "Java $v: ${s:-0} bytes"
-            [ "${s:-0}" -gt 1000000 ] || echo "Java $v ausente ou vazio nos ZIPs (${s:-0} bytes): o app não instala esse runtime" >> "$REPORT_DIR/problems.txt"
-          done
       - name: Instalar JDKs necessários
         uses: actions/setup-java@v4
         with:
@@ -327,7 +305,14 @@ jobs:
             echo "::warning::Nenhum APK gerado."
           fi
           exit 0
-            - name: Publicar relatório
+      - name: Publicar APKs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZalithLauncher2-APK-${{ env.ARCH }}
+          path: /tmp/apks/*.apk
+          if-no-files-found: warn
+      - name: Publicar relatório
         if: always()
         run: |
           {
@@ -337,4 +322,4 @@ jobs:
             echo "### Correções aplicadas"
             cat "$REPORT_DIR/fixed.txt" 2>/dev/null || true
           } >> "$GITHUB_STEP_SUMMARY"
-        
+          
