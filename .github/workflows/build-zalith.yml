@@ -157,23 +157,9 @@ jobs:
           if [ ! -x gradlew ]; then
             problem "gradlew sem permissão de execução"; chmod +x gradlew && fixed "chmod +x gradlew"
           fi
-          gmaj=${GRADLE_VERSION%%.*}
-          case "$gmaj" in ''|*[!0-9]*) gmaj=0 ;; esac
-          for s in settings.gradle.kts settings.gradle; do
-            [ -f "$s" ] || continue
-            v=$(grep -oE 'foojay-resolver-convention["'"'"')[:space:]]*version[[:space:]]*?["'"'"'][0-9.]+' "$s" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+$' | head -1) || true
-            if [ -n "$v" ] && [ "$gmaj" -ge 9 ]; then
-              minor=$(echo "$v" | cut -d. -f1-2)
-              if [ "$(printf '%s\n0.10\n' "$minor" | sort -V | head -1)" != "0.10" ] && [ "$v" != "0.10.0" ]; then
-                problem "$s usa foojay-resolver-convention $v, incompatível com Gradle $GRADLE_VERSION"
-                sed -i -E "s/(foojay-resolver-convention[\"')[:space:]]*version[[:space:]]*\(?[\"'])$v/\11.0.0/" "$s" \
-                  && fixed "foojay-resolver-convention $v -> 1.0.0 em $s (funcionalidade preservada)"
-              fi
-            fi
-          done
           cat > /tmp/gb.sh <<'S'
           cd "$PROJECT_DIR"
-          e() { grep -E '^e: ' "$REPORT_DIR/build-$2.log" | head -15; grep -m1 -E '^e: file://' "$REPORT_DIR/build-$2.log" | sed -E 's#^e: file://([^:]+):([0-9]+):.*#\1 \2#' | { read -r p l; echo "CODIGO $p:"; sed -n "$((l-1)),$((l+1))p" "$p"; }; grep -A14 -m1 "What went wrong" "$REPORT_DIR/build-$2.log" | head -16; }
+          e() { grep -E '^e: ' "$REPORT_DIR/build-$2.log" | head -15; grep -A14 -m1 "What went wrong" "$REPORT_DIR/build-$2.log" | head -16; }
           f() { e "$@"; echo "::error title=Falha em $1::$(e "$@" | sed ':a;N;$!ba;s/\n/%0A/g')"; }
           for i in 1 2 3; do
             if ./gradlew "${APP_PATH}:$1" -I /tmp/oi.gradle --no-daemon -q --console=plain > "$REPORT_DIR/build-$2.log" 2>&1; then echo "Build $1 OK"; exit 0; fi
@@ -184,11 +170,17 @@ jobs:
                 && echo "Removido .weight(...) fora de Row/Column em ${p##*/}:$l" | tee -a "$REPORT_DIR/fixed.txt"
             done
             while read -r p l k n; do
-              s=$(sed -n "${l}p" "$p"); r=$(echo "${s:0:$((k-1))}" | grep -oE '(drawable|mipmap)\.$' | cut -d. -f1)
-              if [ -z "$r" ]; then echo "SEM PADRAO: ${s:0:150}"; continue; fi
+              s=$(sed -n "${l}p" "$p"); r=$(echo "${s:0:$((k-1))}" | grep -oE '(drawable|mipmap|string)\.$' | cut -d. -f1)
+              if [ "$r" = string ]; then
+                X="$APP_DIR/src/main/res/values/zz_missing.xml"
+                [ -f "$X" ] || printf '<resources>\n</resources>\n' > "$X"
+                grep -q "\"$n\"" "$X" || { sed -i "s#</resources>#<string name=\"$n\">${n//_/ }</string>\n</resources>#" "$X"; c=1; echo "String criada: $n"; }
+                continue
+              fi
+              [ -n "$r" ] || { echo "SEM PADRAO: ${s:0:100}"; continue; }
               mkdir -p "$APP_DIR/src/main/res/$r"
-              echo '<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48"><path android:fillColor="#FF9E9E9E" android:pathData="M24,24m-20,0a20,20 0 1,1 40,0a20,20 0 1,1 -40,0"/></vector>' > "$APP_DIR/src/main/res/$r/$n.xml"
-              c=1; echo "Placeholder criado: $r/$n" | tee -a "$REPORT_DIR/fixed.txt"
+              echo '<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48"><path android:fillColor="#888" android:pathData="M24,24m-20,0a20,20 0 1,1 40,0a20,20 0 1,1 -40,0"/></vector>' > "$APP_DIR/src/main/res/$r/$n.xml"
+              c=1; echo "Placeholder criado: $r/$n"
             done < <(sed -nE "s#^e: file://([^:]+):([0-9]+):([0-9]+) Unresolved reference '([A-Za-z0-9_]+)'.*#\1 \2 \3 \4#p" "$REPORT_DIR/build-$2.log" | sort -u)
             [ "$c" = 1 ] || { f "$@"; exit 1; }
           done
