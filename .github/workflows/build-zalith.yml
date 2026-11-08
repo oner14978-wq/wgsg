@@ -327,13 +327,6 @@ jobs:
             echo "::warning::Nenhum APK gerado."
           fi
           exit 0
-      - name: Publicar APKs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ZalithLauncher2-APK-${{ env.ARCH }}
-          path: /tmp/apks/*.apk
-          if-no-files-found: warn
             - name: Publicar relatório
         if: always()
         run: |
@@ -344,4 +337,4 @@ jobs:
             echo "### Correções aplicadas"
             cat "$REPORT_DIR/fixed.txt" 2>/dev/null || true
           } >> "$GITHUB_STEP_SUMMARY"
-  
+        
