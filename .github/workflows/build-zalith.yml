@@ -261,7 +261,19 @@ jobs:
           f "$@"; exit 1
           S
           cat > /tmp/oi.gradle <<'O'
-          allprojects { tasks.matching { it.class.name.contains('KotlinCompile') }.configureEach { t -> try { t.compilerOptions.optIn.addAll(['androidx.compose.material3.ExperimentalMaterial3Api','androidx.compose.material3.ExperimentalMaterial3ExpressiveApi','androidx.compose.foundation.ExperimentalFoundationApi','androidx.compose.foundation.layout.ExperimentalLayoutApi','androidx.compose.animation.ExperimentalAnimationApi','androidx.compose.ui.ExperimentalComposeUiApi','androidx.compose.animation.ExperimentalSharedTransitionApi']) } catch (e) {} } }
+          allprojects { tasks.matching { it.class.name.contains('KotlinCompile') }.configureEach { t ->
+            try {
+              t.compilerOptions.optIn.addAll([
+                'androidx.compose.material3.ExperimentalMaterial3Api',
+                'androidx.compose.material3.ExperimentalMaterial3ExpressiveApi',
+                'androidx.compose.foundation.ExperimentalFoundationApi',
+                'androidx.compose.foundation.layout.ExperimentalLayoutApi',
+                'androidx.compose.animation.ExperimentalAnimationApi',
+                'androidx.compose.ui.ExperimentalComposeUiApi',
+                'androidx.compose.animation.ExperimentalSharedTransitionApi'
+              ])
+            } catch (e) {}
+          } }
           O
 
       - name: "Segunda verificação (após as correções)"
@@ -381,11 +393,4 @@ jobs:
             cp "$f" "/tmp/apks/$name"
           done < /tmp/apklist.txt
           ls -lh /tmp/apks
-          if [ -z "$(ls -A /tmp/apks 2>/dev/null)" ]; then
-            echo "::warning::Nenhum APK gerado."
-          fi
-          exit 0
-
-      - name: Publicar APKs
-        if: always()
-        uses: actions
+          if [ -z "$(ls -A 
