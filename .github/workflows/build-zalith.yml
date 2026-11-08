@@ -30,6 +30,7 @@ env:
   SRC_ROOT: /home/runner/zalith-src
   ARCH: ${{ github.event.inputs.arch || 'all' }}
   BUILD_TYPE: ${{ github.event.inputs.build_type || 'auto' }}
+  UPSTREAM_REF: main
 
 jobs:
   build:
@@ -127,6 +128,28 @@ jobs:
           Fww+gWNzenp6WAY6Fe7/4hYfu0jp5T54q8oXeBVsZyd6sXz9B03G+7C9gu04bbjlqGxb0BQLKdz9
           TfPVxejr77/Mz7/7IRq342nbMm8vvjm/ys/fj4avB6PzN/0OOXTGXz8veqhgCQAA
           B64
+
+      - name: "Completar arquivos da raiz do Gradle (se faltarem)"
+        run: |
+          set -eu
+          if [ -f "$SRC_ROOT/settings.gradle.kts" ] || [ -f "$SRC_ROOT/settings.gradle" ]; then
+            echo "settings.gradle já existe; nada a completar."
+            exit 0
+          fi
+          echo "Raiz do Gradle ausente nos ZIPs; baixando do repositório original (ref: $UPSTREAM_REF)."
+          git clone --depth 1 --branch "$UPSTREAM_REF" https://github.com/ZalithLauncher/ZalithLauncher2.git /tmp/upstream
+          for f in settings.gradle.kts build.gradle.kts gradle.properties gradlew gradlew.bat; do
+            if [ -f "/tmp/upstream/$f" ] && [ ! -f "$SRC_ROOT/$f" ]; then
+              cp "/tmp/upstream/$f" "$SRC_ROOT/$f"
+              echo "Completado da raiz original: $f" | tee -a "$REPORT_DIR/fixed.txt"
+            fi
+          done
+          if [ -d /tmp/upstream/gradle ] && [ ! -d "$SRC_ROOT/gradle" ]; then
+            cp -r /tmp/upstream/gradle "$SRC_ROOT/gradle"
+            echo "Completado da raiz original: pasta gradle/" | tee -a "$REPORT_DIR/fixed.txt"
+          fi
+          [ -f "$SRC_ROOT/gradlew" ] && chmod +x "$SRC_ROOT/gradlew"
+          ls -la "$SRC_ROOT" | head -40
 
       - name: "Verificação 3/4 - identificar a estrutura real do projeto Android"
         run: |
@@ -365,35 +388,4 @@ jobs:
 
       - name: Publicar APKs
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ZalithLauncher2-APK-${{ env.ARCH }}
-          path: /tmp/apks/*.apk
-          if-no-files-found: warn
-
-      - name: Publicar relatório
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: relatorio-verificacao
-          path: /tmp/zreport/
-          if-no-files-found: ignore
-
-      - name: Resumo
-        if: always()
-        run: |
-          set +e +o pipefail
-          {
-            echo "## Resumo da execução"
-            echo "- ZIPs esperados/encontrados/aprovados: ${ZIPS_EXPECTED:-?}/${ZIPS_FOUND:-?}/${ZIPS_OK:-?}"
-            echo "- Gradle ${GRADLE_VERSION:-?} | AGP ${AGP_VERSION:-?} | JDK ${JDK_MAIN:-?}"
-            echo "### Problemas"
-            cat "$REPORT_DIR/problems.txt" 2>/dev/null || true
-            echo "### Correções automáticas"
-            cat "$REPORT_DIR/fixed.txt" 2>/dev/null || true
-            for l in "$REPORT_DIR"/*.log; do
-              [ -f "$l" ] || continue
-              echo "### Log: $(basename "$l")"; echo '```'
-              if grep -q 'What went wrong' "$l"; then grep -A25 -m1 'What went wrong' "$l"
-              else grep -iE 'error|fail|exception|denied' "$l" | tail -n 15; fi
-          
+        uses: actions
