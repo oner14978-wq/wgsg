@@ -140,6 +140,10 @@ jobs:
           find "$SRC_ROOT" -type f \( -name '*.zip' -o -name '*.tar*' -o -name '*.7z' \) | head -20
           echo "--- Conteúdo de cada ZIP (primeiras 6 entradas) ---"
           while read -r z; do echo "# $(basename "$z")"; unzip -Z1 "$z" | head -6; done < "$REPORT_DIR/zips.txt"
+          echo "--- ARQUIVOS_OMITIDOS.txt ---"
+          cat "$SRC_ROOT/ARQUIVOS_OMITIDOS.txt" 2>/dev/null || echo "(não encontrado)"
+          echo "--- Arquivos da raiz do projeto ---"
+          ls -la "$SRC_ROOT/gradle" 2>/dev/null || echo "(sem pasta gradle/ na raiz)"
           echo "=== Fim do diagnóstico ==="
           base64 -d <<'B64' | gunzip | python3 -
           H4sIAAAAAAACA51Y607jShL+76dotVbCZsDA/NlzzMlBnIHDcCCAAjNaKcmJOnE7GHyT2wkZZfIw
@@ -392,8 +396,4 @@ jobs:
               echo "### Log: $(basename "$l")"; echo '```'
               if grep -q 'What went wrong' "$l"; then grep -A25 -m1 'What went wrong' "$l"
               else grep -iE 'error|fail|exception|denied' "$l" | tail -n 15; fi
-              echo '```'
-            done
-          } >> "$GITHUB_STEP_SUMMARY"
-          exit 0
           
