@@ -16,9 +16,6 @@ on:
         options: ["auto", "debug", "release", "both"]
   push:
     branches: ["**"]
-concurrency:
-  group: zalith-apk-${{ github.ref }}
-  cancel-in-progress: true
 permissions:
   contents: read
 env:
@@ -82,8 +79,6 @@ jobs:
               echo "::error::Falha no teste de integridade: $f"
               echo "ZIP corrompido: $f" >> "$REPORT_DIR/problems.txt"; continue
             fi
-            entries=$(unzip -Z1 "$f" | grep -vc '/$' || true)
-            printf 'OK  %-18s %10s bytes  %5s arquivos  (%s)\n' "$(basename "$f")" "$size" "$entries" "${f#$GITHUB_WORKSPACE/}"
             echo "$f" >> "$REPORT_DIR/zips.txt"
             ok=$((ok+1))
           done
@@ -134,7 +129,6 @@ jobs:
               fi
             done < <(cd "$U" && find . -type f | sed 's|^\./||')
           done
-          echo "Recursos (res/) completados: $added"
       - name: "Verificação 3/4 - identificar a estrutura real do projeto Android"
         run: |
           base64 -d <<'B64' | gunzip | python3 -
@@ -288,7 +282,6 @@ jobs:
         run: |
           cd "$PROJECT_DIR"
           F="$APP_DIR/zalith_launcher_debug.jks"
-          grep -nE "keyAlias|storePassword|keyPassword|storeFile" "$APP_DIR"/build.gradle.kts || true
           if [ ! -f "$F" ]; then
             keytool -genkeypair -v -keystore "$F" -storetype JKS \
               -alias androiddebugkey -storepass android -keypass android \
@@ -332,4 +325,8 @@ jobs:
       - name: Publicar APKs
         if: always()
         uses: actions/upload-artifact@v4
-        wi
+        with:
+          name: ZalithLauncher2-APK-${{ env.ARCH }}
+          path: /tmp/apks/*.apk
+          if-no-files-found: warn
+          
