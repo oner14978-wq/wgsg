@@ -129,27 +129,39 @@ jobs:
           TfPVxejr77/Mz7/7IRq342nbMm8vvjm/ys/fj4avB6PzN/0OOXTGXz8veqhgCQAA
           B64
 
-      - name: "Completar arquivos da raiz do Gradle (se faltarem)"
+      - name: "Completar arquivos faltantes a partir do repositório original"
         run: |
           set -eu
-          if [ -f "$SRC_ROOT/settings.gradle.kts" ] || [ -f "$SRC_ROOT/settings.gradle" ]; then
-            echo "settings.gradle já existe; nada a completar."
-            exit 0
-          fi
-          echo "Raiz do Gradle ausente nos ZIPs; baixando do repositório original (ref: $UPSTREAM_REF)."
-          git clone --depth 1 --branch "$UPSTREAM_REF" https://github.com/ZalithLauncher/ZalithLauncher2.git /tmp/upstream
-          for f in settings.gradle.kts build.gradle.kts gradle.properties gradlew gradlew.bat; do
-            if [ -f "/tmp/upstream/$f" ] && [ ! -f "$SRC_ROOT/$f" ]; then
-              cp "/tmp/upstream/$f" "$SRC_ROOT/$f"
-              echo "Completado da raiz original: $f" | tee -a "$REPORT_DIR/fixed.txt"
+          [ -d /tmp/upstream ] || git clone --depth 1 --branch "$UPSTREAM_REF" https://github.com/ZalithLauncher/ZalithLauncher2.git /tmp/upstream
+          if [ ! -f "$SRC_ROOT/settings.gradle.kts" ] && [ ! -f "$SRC_ROOT/settings.gradle" ]; then
+            echo "Raiz do Gradle ausente nos ZIPs; completando do repositório original (ref: $UPSTREAM_REF)."
+            for f in settings.gradle.kts build.gradle.kts gradle.properties gradlew gradlew.bat; do
+              if [ -f "/tmp/upstream/$f" ] && [ ! -f "$SRC_ROOT/$f" ]; then
+                cp "/tmp/upstream/$f" "$SRC_ROOT/$f"
+                echo "Completado da raiz original: $f" | tee -a "$REPORT_DIR/fixed.txt"
+              fi
+            done
+            if [ -d /tmp/upstream/gradle ] && [ ! -d "$SRC_ROOT/gradle" ]; then
+              cp -r /tmp/upstream/gradle "$SRC_ROOT/gradle"
+              echo "Completado da raiz original: pasta gradle/" | tee -a "$REPORT_DIR/fixed.txt"
             fi
-          done
-          if [ -d /tmp/upstream/gradle ] && [ ! -d "$SRC_ROOT/gradle" ]; then
-            cp -r /tmp/upstream/gradle "$SRC_ROOT/gradle"
-            echo "Completado da raiz original: pasta gradle/" | tee -a "$REPORT_DIR/fixed.txt"
+            if [ -f "$SRC_ROOT/gradlew" ]; then chmod +x "$SRC_ROOT/gradlew"; fi
           fi
-          [ -f "$SRC_ROOT/gradlew" ] && chmod +x "$SRC_ROOT/gradlew"
-          ls -la "$SRC_ROOT" | head -40
+          added=0
+          for m in ZalithLauncher Guide InputMap ColorPicker CardGrid LayerController Terracotta PetLib; do
+            U="/tmp/upstream/$m/src/main/res"
+            D="$SRC_ROOT/$m/src/main/res"
+            if [ ! -d "$U" ] || [ ! -d "$SRC_ROOT/$m" ]; then continue; fi
+            while IFS= read -r f; do
+              if [ ! -e "$D/$f" ]; then
+                mkdir -p "$(dirname "$D/$f")"
+                cp "$U/$f" "$D/$f"
+                echo "Recurso completado: $m/src/main/res/$f" | tee -a "$REPORT_DIR/fixed.txt"
+                added=$((added+1))
+              fi
+            done < <(cd "$U" && find . -type f | sed 's|^\./||')
+          done
+          echo "Recursos (res/) completados: $added"
 
       - name: "Verificação 3/4 - identificar a estrutura real do projeto Android"
         run: |
@@ -363,26 +375,4 @@ jobs:
             both) r=true ;;
             *) r=$s ;;
           esac
-          if [ "$r" = true ] && [ "$s" != true ]; then
-            echo "Release ignorado: secrets ausentes" >> "$REPORT_DIR/problems.txt"; r=false
-          fi
-          echo "BUILD_DEBUG=$d" >> "$GITHUB_ENV"; echo "BUILD_RELEASE=$r" >> "$GITHUB_ENV"
-
-      - name: Compilar Debug
-        if: env.BUILD_DEBUG == 'true'
-        run: |
-          cd "$PROJECT_DIR"
-          bash /tmp/gb.sh assembleDebug debug
-
-      - name: Compilar Release
-        if: env.BUILD_RELEASE == 'true'
-        run: |
-          cd "$PROJECT_DIR"
-          bash /tmp/gb.sh assembleRelease release
-
-      - name: Coletar APKs
-        if: always()
-        run: |
-          set +e +o pipefail
-          mkdir -p /tmp/apks
-          find "${PROJECT_DI
+          if [ "$r" = true ] && [ "$s" != tr
